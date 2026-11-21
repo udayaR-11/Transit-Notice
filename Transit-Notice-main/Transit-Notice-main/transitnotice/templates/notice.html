@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ n.title }} - TransitNotice{% endblock %}
+{% block body %}
+{% set unverified = n.source_stale and n.state in ['active','upcoming'] %}
+<a class="crumb" href="{{ url_for('index') }}"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg>All service updates</a>
+
+<div class="detail">
+  <div>
+    <section class="card">
+      <div class="chips" style="margin-bottom:10px">
+        {% for r in n.routes %}<span class="route">{{ r }}</span>{% endfor %}
+        <span class="badge {{ n.state }}">{{ STATE_LABELS[n.state] }}</span>
+        {% if unverified %}<span class="badge unverified"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg>Unverified since last check</span>{% endif %}
+      </div>
+      <div class="typeline" style="margin-top:0"><svg class="ic" aria-hidden="true"><use href="#{{ TYPE_ICONS[n.type] }}"/></svg>{{ TYPE_LABELS[n.type] }}</div>
+      <h1 style="font-size:1.6rem;margin:4px 0 10px">{{ n.title }}</h1>
+      <p>{{ n.summary }}</p>
+      <div class="window">
+        <div class="window-dates"><span>{{ n.valid_from|local }}</span><span>{% if n.open_ended %}No end date announced{% else %}{{ n.valid_to|local }}{% endif %}</span></div>
+        <div class="track {{ 'open' if n.open_ended and n.state=='active' }} s-{{ n.state }}"><span class="fill" style="width: {{ 100 if n.progress is none else n.progress }}%"></span></div>
+        <div class="window-note">{{ n.relative }}</div>
+      </div>
+      {% if n.revision_id > 1 and n.change_summary %}<div class="changed"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><div><strong>Latest change:</strong> {{ n.change_summary }}</div></div>{% endif %}
+      <dl class="kv" style="margin-top:14px">
+        <dt>Agency</dt><dd>{{ n.agency }}</dd>
+        <dt>Published</dt><dd>{{ n.published_at|local }}</dd>
+        {% if n.area %}<dt>Area</dt><dd>{{ n.area }}</dd>{% endif %}
+        {% if n.stations %}<dt>Stops</dt><dd>{{ n.stations|join(', ') }}</dd>{% endif %}
+        <dt>First seen</dt><dd>{{ n.observed_at|local }}</dd>
+      </dl>
+    </section>
+
+    <section class="card" aria-labelledby="hist-h">
+      <h2 id="hist-h">Change history</h2>
+      <ol class="history">
+        {% for r in revs %}
+        <li><span class="node" aria-hidden="true">{{ r.revision_id }}</span>
+          <strong>Revision {{ r.revision_id }}{% if loop.first %} (current){% endif %}</strong>
+          <div>{{ r.change_summary }}</div>
+          <time>Observed {{ r.observed_at|local }} &middot; valid until {{ r.valid_to|local if r.valid_to else 'no end date' }}</time>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+  </div>
+
+  <aside>
+    <section class="card verify" aria-labelledby="ver-h">
+      <h2 id="ver-h">Verification</h2>
+      <div class="row"><svg class="ic" aria-hidden="true"><use href="#{{ 'i-warn' if unverified else 'i-check' }}"/></svg>
+        <div><strong>Last verified</strong><small>{{ n.last_confirmed_at|local }} ({{ n.last_confirmed_at|ago }})</small>
+        {% if unverified %}<small>The source could not be re-checked since then.</small>{% endif %}</div></div>
+      <div class="row"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg>
+        <div><strong>Source</strong><small><a href="{{ n.source_url|safe_url }}" rel="noopener noreferrer">Official notice</a></small></div></div>
+      <div class="row"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>
+        <div><strong>Follow this route</strong><small><a href="{{ url_for('subscribe') }}">Get alerts for {{ n.routes|join(', ') }}</a></small></div></div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

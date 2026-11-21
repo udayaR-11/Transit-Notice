@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Admin - TransitNotice{% endblock %}
+{% block body %}
+<div class="page-head"><div><h1>Admin</h1><p>Refresh sources manually and review what each refresh found.</p></div></div>
+{% if disabled %}
+  <div class="card"><p>Admin is disabled. Set <code>TN_ADMIN_TOKEN</code> in your <code>.env</code> file to enable it.</p></div>
+{% elif not authed %}
+  <form class="card login" method="post" action="{{ url_for('admin') }}">
+    <h2>Admin sign in</h2>
+    {% if error %}<div class="flash error" role="alert"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg>{{ error }}</div>{% endif %}
+    <div class="form-grid">
+      <div><label for="token">Admin token</label><input id="token" name="token" type="password" autocomplete="off" required></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="submit" name="action" value="refresh">Refresh now</button>
+        <button class="ghost" type="submit" name="action" value="view">View logs</button>
+      </div>
+    </div>
+  </form>
+{% else %}
+  <form class="card" method="post" action="{{ url_for('admin') }}" style="display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <input type="hidden" name="token" value="{{ token }}">
+    <div><strong>Refresh sources</strong><div class="muted">Fetches each source, compares with stored notices and sends alerts for changes.</div></div>
+    <button type="submit" name="action" value="refresh">Refresh now</button>
+  </form>
+  {% if results %}
+    <section class="card"><h2>Refresh result</h2>
+    {% for r in results %}<p><strong>{{ r.source_key }}</strong> <span class="out {{ r.outcome }}">{{ r.outcome }}</span>
+      {{ r.new }} new, {{ r.revised }} revised, {{ r.unchanged }} unchanged, {{ r.withdrawn }} withdrawn, {{ r.skipped }} skipped.
+      {% if r.error %}<br><span class="muted">Error: {{ r.error }}</span>{% endif %}</p>{% endfor %}</section>
+  {% endif %}
+  <section class="card"><h2>Refresh log</h2>
+  <div class="tablewrap"><table><thead><tr><th scope="col">When</th><th scope="col">Source</th><th scope="col">Outcome</th><th scope="col">New</th><th scope="col">Revised</th><th scope="col">Same</th><th scope="col">Withdrawn</th><th scope="col">Skipped</th><th scope="col">Notes</th></tr></thead><tbody>
+  {% for l in logs %}<tr><td>{{ l.started_at|local }}</td><td>{{ l.source_key }}</td><td><span class="out {{ l.outcome }}">{{ l.outcome }}</span></td><td>{{ l.new_count }}</td><td>{{ l.revised_count }}</td><td>{{ l.unchanged_count }}</td><td>{{ l.withdrawn_count }}</td><td>{{ l.skipped_count }}</td><td>{{ l.error or '' }}</td></tr>{% endfor %}
+  </tbody></table></div></section>
+{% endif %}
+{% endblock %}

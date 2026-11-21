@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Service updates - TransitNotice{% endblock %}
+{% block body %}
+
+<div class="page-head">
+  <div>
+    <h1>Service updates</h1>
+    <p>Route diversions and planned service interruptions from official transport notices, with the time each one was last verified.</p>
+  </div>
+  <div class="freshwrap">
+  {% for x in fresh %}
+    {% if x.stale %}
+    <div class="fresh stale" role="alert">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="#i-warn"/></svg>
+      <div><strong>Could not confirm these updates are current.</strong>
+        <span>{{ x.source.agency }}: last successful check {{ (x.last_success_at|local) if x.last_success_at else 'never' }}{% if x.last_success_at %} ({{ x.last_success_at|ago }}){% endif %}.
+        {% if x.last_error %}Latest problem: {{ x.last_error }}.{% endif %}
+        Statuses below reflect that last check, not today's conditions.</span></div>
+    </div>
+    {% else %}
+    <div class="fresh">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="#i-check"/></svg>
+      <div><strong>{{ x.source.agency }}: up to date</strong>
+        <span>Last successful check {{ x.last_success_at|local }} ({{ x.last_success_at|ago }}).
+        <a href="{{ x.source.page_url|safe_url }}" rel="noopener noreferrer">Source page</a></span></div>
+    </div>
+    {% endif %}
+  {% else %}
+    <div class="fresh stale" role="alert">
+      <svg class="ic ic-lg" aria-hidden="true"><use href="#i-warn"/></svg>
+      <div><strong>No source has been checked yet.</strong><span>Open Admin and choose Refresh now.</span></div>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+
+<section class="stats" aria-label="Summary">
+  <div class="stat"><span class="badge-ic t-active"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-check"/></svg></span><div><b>{{ stats.active }}</b><span>Active now</span></div></div>
+  <div class="stat"><span class="badge-ic t-upcoming"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-calendar"/></svg></span><div><b>{{ stats.upcoming }}</b><span>Starting soon</span></div></div>
+  <div class="stat"><span class="badge-ic t-neutral"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-route"/></svg></span><div><b>{{ stats.routes }}</b><span>Routes affected now</span></div></div>
+  <div class="stat"><span class="badge-ic t-warn"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-inf"/></svg></span><div><b>{{ stats.open_ended }}</b><span>No end date announced</span></div></div>
+</section>
+
+<nav class="tabs" aria-label="Filter by status">
+  {% for v, l, c in [('current','Active and upcoming',stats.current),('active','Active',stats.active),('upcoming','Upcoming',stats.upcoming),('expired','Expired',stats.expired),('withdrawn','Withdrawn',stats.withdrawn),('all','Everything',stats.all)] %}
+    <a class="tab" href="{{ url_with(status=v) }}" {% if f.status==v %}aria-current="true"{% endif %}>{{ l }} <em>{{ c }}</em></a>
+  {% endfor %}
+</nav>
+
+<form class="card filterbar" method="get" action="{{ url_for('index') }}" aria-label="Search and filter updates">
+  <input type="hidden" name="status" value="{{ f.status }}">
+  <div><label for="q">Search text</label><input id="q" name="q" value="{{ f.q }}" placeholder="e.g. Bypass Road"></div>
+  <div><label for="route">Route</label><input id="route" name="route" value="{{ f.route }}" placeholder="e.g. 45A"></div>
+  <div><label for="station">Station or stop</label><input id="station" name="station" value="{{ f.station }}" placeholder="e.g. Silk Board"></div>
+  <div><label for="area">Area</label><input id="area" name="area" value="{{ f.area }}" placeholder="e.g. Hosur Road"></div>
+  <div><label for="date">Travel date</label><input id="date" type="date" name="date" value="{{ f.date }}"></div>
+  <div class="actions"><button type="submit"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>Search</button><a class="btn ghost" href="{{ url_for('index') }}">Clear</a></div>
+</form>
+
+<section class="card" aria-labelledby="tl-h">
+  <h2 id="tl-h">Next {{ tl.days }} days <span class="muted" style="font-weight:500">&middot; {{ tl.from_label }} to {{ tl.to_label }}</span></h2>
+  {% if tl.rows %}
+  <div class="tl" role="img" aria-label="Timeline of {{ tl.rows|length }} active or upcoming notices over the next {{ tl.days }} days. The full details are in the list below.">
+    <div class="tl-in">
+      <div class="tl-axis">
+        {% for t in tl.ticks %}<div class="tl-tick {{ 'we' if t.weekend }}" style="left: {{ t.left }}%"><b>{{ t.label }}</b>{{ t.dow }}</div>{% endfor %}
+      </div>
+      <div class="tl-rows">
+        <div class="tl-now" style="left: {{ tl.now_left }}%"></div>
+        {% for r in tl.rows %}
+        <div class="tl-row">
+          <a class="tl-bar {{ r.state }} {{ 'runs-on' if r.runs_on }}" style="left: {{ r.left }}%; width: {{ r.width }}%" href="{{ url_for('notice_detail', notice_id=r.notice_id) }}" tabindex="-1">{{ r.routes|join(', ') }}{% if r.open_ended %} &middot; no end date{% endif %}</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="tl-empty">Nothing in this view runs during the next {{ tl.days }} days.</p>
+  {% endif %}
+</section>
+
+<div class="grid">
+  <section aria-labelledby="results-h">
+    <div class="results-head"><h2 id="results-h">{{ notices|length }} update{{ '' if notices|length==1 else 's' }} found</h2><span>Active first, then upcoming</span></div>
+    {% if notices %}
+    <ul class="list">
+      {% for n in notices %}
+      {% set unverified = n.source_stale and n.state in ['active','upcoming'] %}
+      <li class="notice s-{{ n.state }}">
+        <div class="notice-top">
+          <div class="chips">{% for r in n.routes %}<span class="route">{{ r }}</span>{% endfor %}</div>
+          <div class="chips">
+            <span class="badge {{ n.state }}"><svg class="ic" aria-hidden="true"><use href="#{{ 'i-check' if n.state=='active' else 'i-calendar' if n.state=='upcoming' else 'i-warn' if n.state=='withdrawn' else 'i-clock' }}"/></svg>{{ STATE_LABELS[n.state] }}</span>
+            {% if unverified %}<span class="badge unverified"><svg class="ic" aria-hidden="true"><use href="#i-warn"/></svg>Unverified since last check</span>{% endif %}
+          </div>
+        </div>
+        <div class="typeline"><svg class="ic" aria-hidden="true"><use href="#{{ TYPE_ICONS[n.type] }}"/></svg>{{ TYPE_LABELS[n.type] }}{% if n.revision_id > 1 %} &middot; revision {{ n.revision_id }}{% endif %}</div>
+        <h3><a href="{{ url_for('notice_detail', notice_id=n.notice_id) }}">{{ n.title }}</a></h3>
+        <p class="sum">{{ n.summary }}</p>
+
+        <div class="window">
+          <div class="window-dates"><span>{{ n.valid_from|local_short }}</span><span>{% if n.open_ended %}No end date announced{% else %}{{ n.valid_to|local_short }}{% endif %}</span></div>
+          <div class="track {{ 'open' if n.open_ended and n.state=='active' }}"><span class="fill" style="width: {{ 100 if n.progress is none else n.progress }}%"></span></div>
+          <div class="window-note">{{ n.relative }}</div>
+        </div>
+
+        {% if n.area or n.stations %}
+        <div class="facts">
+          {% if n.area %}<span><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>{{ n.area }}</span>{% endif %}
+          {% if n.stations %}<span><svg class="ic" aria-hidden="true"><use href="#i-route"/></svg>{{ n.stations|join(', ') }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if n.revision_id > 1 and n.change_summary %}<div class="changed"><svg class="ic" aria-hidden="true"><use href="#i-info"/></svg><div><strong>Change:</strong> {{ n.change_summary }}</div></div>{% endif %}
+
+        <div class="notice-foot">
+          <span class="{{ 'stale' if unverified }}">Last verified {{ n.last_confirmed_at|local }} ({{ n.last_confirmed_at|ago }})</span>
+          <a class="push" href="{{ n.source_url|safe_url }}" rel="noopener noreferrer">Official source <svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></a>
+          <a href="{{ url_for('notice_detail', notice_id=n.notice_id) }}">History</a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <div class="empty"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <h3>No updates match these filters</h3>
+        <p class="muted">Clear the route or date, or choose Everything to include the archive.</p>
+        <a class="btn ghost" href="{{ url_for('index') }}">Clear filters</a></div>
+    {% endif %}
+  </section>
+
+  <aside class="aside" aria-label="Overview">
+    {% if counts %}
+    <div class="card" role="group" aria-labelledby="chart-h">
+      <h2 id="chart-h">Active updates by type</h2>
+      {% set top = counts[0][1] %}
+      {% for t, c in counts %}
+        <div class="bar-row"><span class="name"><svg class="ic" aria-hidden="true"><use href="#{{ TYPE_ICONS[t] }}"/></svg>{{ TYPE_LABELS[t] }}</span>
+          <span class="bar-wrap"><span class="bar" style="width: {{ (c / top * 100)|round|int }}%" role="img" aria-label="{{ TYPE_LABELS[t] }}: {{ c }}"></span></span><b>{{ c }}</b></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="card">
+      <h2>How to read this</h2>
+      <ul class="legend">
+        <li><span class="badge active">Active</span>Inside its announced window right now.</li>
+        <li><span class="badge upcoming">Upcoming</span>Announced, starts later.</li>
+        <li><span class="badge expired">Expired</span>Window has ended. Kept as archive.</li>
+        <li><span class="badge withdrawn">Withdrawn</span>Removed by the authority before its end.</li>
+        <li><span class="badge unverified">Unverified</span>We could not re-check the source recently.</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Get alerts - TransitNotice{% endblock %}
+{% block body %}
+<div class="page-head"><div><h1>Get alerts</h1>
+  <p>Get exactly one alert whenever a matching notice is new, changed, extended or withdrawn.</p></div></div>
+
+<div class="two">
+  <section class="card" aria-labelledby="new-h">
+    <h2 id="new-h">New alert</h2>
+    <form method="post" action="{{ url_for('subscribe') }}" class="form-grid">
+      <div><label for="label">Name for this alert</label><input id="label" name="label" required maxlength="60" placeholder="e.g. My commute"></div>
+      <div><label for="route">Route</label><input id="route" name="route" maxlength="20" placeholder="e.g. 45A"></div>
+      <div><label for="area">Area</label><input id="area" name="area" maxlength="60" placeholder="e.g. Hosur Road"></div>
+      <div><label for="contact">Contact (optional)</label><input id="contact" name="contact" maxlength="120" placeholder="Not used in demo mode"></div>
+      <p class="muted" style="margin:0;font-size:.86rem">Choose a route, an area, or both. We store only what is needed to match notices. Demo mode writes alerts to the delivery log instead of sending messages.</p>
+      <button type="submit"><svg class="ic" aria-hidden="true"><use href="#i-bell"/></svg>Save alert</button>
+    </form>
+  </section>
+
+  <div>
+    <section class="card" aria-labelledby="mine-h">
+      <h2 id="mine-h">Your alerts</h2>
+      {% if subs %}<ul class="subs">{% for s in subs %}
+        <li><span><strong>{{ s.label }}</strong><br><span class="muted">route {{ s.filter_route or 'any' }}, area {{ s.filter_area or 'any' }}</span></span>
+          {% if s.filter_route %}<span class="route">{{ s.filter_route }}</span>{% endif %}</li>{% endfor %}</ul>
+      {% else %}<p class="muted">No alerts yet. Add one on the left.</p>{% endif %}
+    </section>
+    <section class="card" aria-labelledby="log-h">
+      <h2 id="log-h">Delivery log</h2>
+      {% if recent %}
+      <div class="tablewrap"><table><thead><tr><th scope="col">Alert</th><th scope="col">Status</th><th scope="col">Sent</th><th scope="col">Message</th></tr></thead><tbody>
+      {% for a in recent %}<tr><td>{{ a.label }}<br><span class="muted">{{ a.kind }}</span></td><td><span class="out {{ a.alert_status }}">{{ a.alert_status }}</span></td><td>{{ a.alerted_at|local_short }}</td><td>{{ a.message }}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% else %}<p class="muted">Nothing delivered yet.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}
